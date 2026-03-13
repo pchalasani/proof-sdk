@@ -42,11 +42,6 @@ for (const detail of noReplayDetails) {
 }
 
 assert(
-  /details: 'suggestion\.accept'[\s\S]*?strictLiveDoc: true,[\s\S]*?apply: false,/.test(source),
-  'Expected suggestion.accept verification to avoid replaying canonical state into the live room',
-);
-
-assert(
   /details: `\$\{method\} \$\{path\}`[\s\S]*?\{ apply: false \},/.test(source),
   'Expected the generic mutation passthrough to avoid route-level collab replay',
 );

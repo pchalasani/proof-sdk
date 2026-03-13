@@ -2152,7 +2152,6 @@ agentRoutes.post('/:slug/marks/accept', async (req: Request, res: Response) => {
         source: 'marks.accept',
         stabilityMs: EDIT_COLLAB_STABILITY_MS,
         strictLiveDoc: true,
-        apply: false,
       },
     );
     if (isRecord(result.body)) {
