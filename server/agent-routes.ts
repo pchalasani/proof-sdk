@@ -1154,7 +1154,7 @@ function notifyCollabMutation(
           presenceApplied: false,
           cursorApplied: false,
         };
-      } else {
+      } else if (options?.apply !== false) {
         await applyCanonicalDocumentToCollab(slug, {
           markdown: targetMarkdown,
           marks: targetMarks,
@@ -2022,7 +2022,7 @@ agentRoutes.post('/:slug/ops', async (req: Request, res: Response) => {
         quote: typeof payload.quote === 'string' ? payload.quote : null,
         details: op,
       }),
-      { verify: false },
+      { verify: false, apply: false },
     );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
@@ -2044,7 +2044,11 @@ agentRoutes.post('/:slug/marks/comment', async (req: Request, res: Response) => 
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/comment', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'comment.add' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'comment.add' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2065,7 +2069,11 @@ agentRoutes.post('/:slug/marks/suggest-replace', async (req: Request, res: Respo
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/suggest-replace', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.replace' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.replace' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2086,7 +2094,11 @@ agentRoutes.post('/:slug/marks/suggest-insert', async (req: Request, res: Respon
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/suggest-insert', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.insert' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.insert' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2107,7 +2119,11 @@ agentRoutes.post('/:slug/marks/suggest-delete', async (req: Request, res: Respon
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/suggest-delete', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.delete' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.add.delete' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2136,6 +2152,7 @@ agentRoutes.post('/:slug/marks/accept', async (req: Request, res: Response) => {
         source: 'marks.accept',
         stabilityMs: EDIT_COLLAB_STABILITY_MS,
         strictLiveDoc: true,
+        apply: false,
       },
     );
     if (isRecord(result.body)) {
@@ -2192,7 +2209,11 @@ agentRoutes.post('/:slug/marks/reject', async (req: Request, res: Response) => {
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/reject', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.reject' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'suggestion.reject' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2213,7 +2234,11 @@ agentRoutes.post('/:slug/marks/reply', async (req: Request, res: Response) => {
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/reply', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'comment.reply' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'comment.reply' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2234,7 +2259,11 @@ agentRoutes.post('/:slug/marks/resolve', async (req: Request, res: Response) => 
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/resolve', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'comment.resolve' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'comment.resolve' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2255,7 +2284,11 @@ agentRoutes.post('/:slug/marks/unresolve', async (req: Request, res: Response) =
   const result = await executeDocumentOperationAsync(slug, 'POST', '/marks/unresolve', payload);
   storeIdempotentMutationResult(slug, routeKey, replay, result.status, result.body);
   if (result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, payload, { details: 'comment.unresolve' }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, payload, { details: 'comment.unresolve' }),
+      { apply: false },
+    );
   }
   sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
 });
@@ -2498,7 +2531,11 @@ agentRoutes.use(async (req: Request, res: Response) => {
   }
   const result = await executeDocumentOperationAsync(slug, method, path, asPayload(req.body));
   if (routeRequiresMutation(method, path) && result.status >= 200 && result.status < 300) {
-    notifyCollabMutation(slug, buildParticipationFromMutation(req, slug, asPayload(req.body), { details: `${method} ${path}` }));
+    notifyCollabMutation(
+      slug,
+      buildParticipationFromMutation(req, slug, asPayload(req.body), { details: `${method} ${path}` }),
+      { apply: false },
+    );
   }
   if (routeRequiresMutation(method, path)) {
     sendMutationResponse(res, result.status, result.body, { route: mutationRoute, slug });
