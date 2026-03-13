@@ -15,6 +15,7 @@ import type { Node as ProseMirrorNode, MarkType } from '@milkdown/kit/prose/mode
 import { ySyncPluginKey } from 'y-prosemirror';
 import { buildTextIndex, getTextForRange, mapTextOffsetsToRange, resolveQuoteRange } from '../utils/text-range';
 import { SHARE_CONTENT_FILTER_ALLOW_META } from './share-content-filter';
+import { shouldPreserveMissingLocalMark } from '../../bridge/marks-preservation.js';
 
 import {
   type Mark,
@@ -1676,6 +1677,7 @@ export function applyRemoteMarks(
   pruneMarkAnchorHydrationFailures(now);
   const allEntries = Object.entries(canonicalMetadata);
   const finalizedSuggestionIds = new Set<string>();
+  const removedAuthoritativeSuggestionIds = new Set<string>();
   let authoredHydrationFailures = 0;
   let authoredHydrationSuppressed = 0;
 
@@ -1684,7 +1686,16 @@ export function applyRemoteMarks(
   // but preserve the local resolved state to prevent stale server data from
   // flipping resolved comments back to unresolved.
   // For tombstoned suggestion marks, skip entirely (accepted/rejected locally).
-  const merged = canonicalizeStoredMarks({ ...getMarkMetadata(view.state) });
+  const localMetadata = canonicalizeStoredMarks(getMarkMetadata(view.state));
+  const merged = canonicalizeStoredMarks({ ...localMetadata });
+  for (const [id, localMark] of Object.entries(localMetadata)) {
+    if (Object.prototype.hasOwnProperty.call(canonicalMetadata, id)) continue;
+    if (shouldPreserveMissingLocalMark(localMark)) continue;
+    delete merged[id];
+    if (localMark.kind === 'insert' || localMark.kind === 'delete' || localMark.kind === 'replace') {
+      removedAuthoritativeSuggestionIds.add(id);
+    }
+  }
   const filteredEntries: [string, StoredMark][] = [];
   for (const [id, stored] of allEntries) {
     const status = stored?.status;
@@ -1716,6 +1727,9 @@ export function applyRemoteMarks(
     filteredEntries.push([id, stored]);
   }
 
+  for (const id of removedAuthoritativeSuggestionIds) {
+    finalizedSuggestionIds.add(id);
+  }
   tr = removeSuggestionAnchors(tr, finalizedSuggestionIds);
 
   if (hydrateAnchors) {

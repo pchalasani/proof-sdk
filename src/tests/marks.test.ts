@@ -1548,6 +1548,69 @@ test('applyRemoteMarks ignores finalized suggestion metadata on reload', () => {
   assert(!pluginState?.metadata?.[suggestionId], 'Rejected suggestions should not remain in editor metadata snapshots');
 });
 
+test('applyRemoteMarks removes local pending suggestions when server omits them', () => {
+  const suggestionId = 's-missing-from-server';
+  const suggestionMark = marksSchema.marks.proofSuggestion.create({
+    id: suggestionId,
+    kind: 'replace',
+    by: 'ai:test',
+  });
+
+  const marksStatePlugin = new Plugin({
+    key: marksPluginKey,
+    state: {
+      init: () => ({
+        metadata: {
+          [suggestionId]: {
+            kind: 'replace' as const,
+            by: 'ai:test',
+            createdAt: new Date('2026-03-06T12:00:00.000Z').toISOString(),
+            quote: 'world',
+            content: 'Proof',
+            status: 'pending' as const,
+          },
+        },
+        activeMarkId: null,
+      }),
+      apply: (tr, value) => {
+        const meta = tr.getMeta(marksPluginKey);
+        if (meta?.type === 'SET_METADATA') {
+          return { ...value, metadata: meta.metadata };
+        }
+        if (meta?.type === 'SET_ACTIVE') {
+          return { ...value, activeMarkId: meta.markId ?? null };
+        }
+        return value;
+      },
+    },
+  });
+
+  let state = EditorState.create({
+    schema: marksSchema,
+    doc: marksSchema.node('doc', null, [
+      marksSchema.node('paragraph', null, [
+        marksSchema.text('Hello '),
+        marksSchema.text('world', [suggestionMark]),
+      ]),
+    ]),
+    plugins: [marksStatePlugin],
+  });
+
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(tr: any) {
+      state = state.apply(tr);
+    },
+  } as any;
+
+  applyRemoteMarks(view, {});
+
+  assert(!getMarks(state).some((mark) => mark.id === suggestionId), 'Missing server suggestion should be removed from the document');
+  assert(!getMarkMetadata(state)[suggestionId], 'Missing server suggestion should be removed from local metadata');
+});
+
 test('applyRemoteMarks removes existing suggestion anchors when server finalizes them', () => {
   const suggestionId = 's-finalized';
   const suggestionMark = marksSchema.marks.proofSuggestion.create({

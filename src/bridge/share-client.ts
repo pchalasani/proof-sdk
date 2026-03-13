@@ -90,6 +90,8 @@ export interface AccessLinkResponse {
 export interface ShareMarkMutationResponse {
   success: boolean;
   marks?: Record<string, unknown>;
+  markdown?: string;
+  content?: string;
 }
 
 type ShareMutationBase = {
@@ -547,6 +549,8 @@ export class ShareClient {
       marks: (payload?.marks && typeof payload.marks === 'object' && !Array.isArray(payload.marks))
         ? payload.marks as Record<string, unknown>
         : undefined,
+      markdown: typeof payload?.markdown === 'string' ? payload.markdown : undefined,
+      content: typeof payload?.content === 'string' ? payload.content : undefined,
     };
   }
 

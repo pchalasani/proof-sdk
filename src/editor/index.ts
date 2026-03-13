@@ -4606,6 +4606,26 @@ class ProofEditorImpl implements ProofEditor {
     });
   }
 
+  private applyShareMutationSnapshot(
+    markdown: string | null,
+    marks: Record<string, StoredMark>,
+  ): void {
+    this.lastReceivedServerMarks = { ...marks };
+    this.initialMarksSynced = true;
+
+    if (typeof markdown === 'string') {
+      this.loadDocument(markdown, { allowShareContentMutation: true });
+    }
+
+    if (!this.editor) return;
+    this.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      applyRemoteMarks(view, marks, { hydrateAnchors: this.collabCanEdit });
+      const stats = getAuthorshipStats(view);
+      this.bridge.authorshipStatsUpdated(stats);
+    });
+  }
+
   private applyLatestCollabMarksToEditor(): void {
     if (!this.isShareMode || !this.collabEnabled || !this.editor) return;
     if (Object.keys(this.lastReceivedServerMarks).length === 0) return;
@@ -8382,18 +8402,11 @@ class ProofEditorImpl implements ProofEditor {
         if (!result || 'error' in result || result.success !== true) return;
         const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
           ? result.marks as Record<string, StoredMark>
-          : null;
-        if (!serverMarks) return;
-        this.lastReceivedServerMarks = { ...serverMarks };
-        this.initialMarksSynced = true;
-        if (this.editor) {
-          this.editor.action((innerCtx) => {
-            const innerView = innerCtx.get(editorViewCtx);
-            applyRemoteMarks(innerView, serverMarks, { hydrateAnchors: this.collabCanEdit });
-            const stats = getAuthorshipStats(innerView);
-            this.bridge.authorshipStatsUpdated(stats);
-          });
-        }
+          : {};
+        const authoritativeMarkdown = typeof result.markdown === 'string'
+          ? result.markdown
+          : (typeof result.content === 'string' ? result.content : null);
+        this.applyShareMutationSnapshot(authoritativeMarkdown, serverMarks);
         captureEvent('suggestion_accepted', { count: 1 });
       }).catch((error) => {
         console.error('[markAccept] Failed to persist suggestion acceptance via share mutation:', error);
@@ -8508,28 +8521,22 @@ class ProofEditorImpl implements ProofEditor {
       const actor = getCurrentActor();
       void (async () => {
         let latestServerMarks: Record<string, StoredMark> | null = null;
+        let latestServerMarkdown: string | null = null;
         let acceptedCount = 0;
         for (const suggestionId of acceptedIds) {
           const result = await shareClient.acceptSuggestion(suggestionId, actor);
           if (!result || 'error' in result || result.success !== true) continue;
           const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
             ? result.marks as Record<string, StoredMark>
-            : null;
-          if (!serverMarks) continue;
+            : {};
           latestServerMarks = serverMarks;
+          latestServerMarkdown = typeof result.markdown === 'string'
+            ? result.markdown
+            : (typeof result.content === 'string' ? result.content : latestServerMarkdown);
           acceptedCount += 1;
         }
         if (!latestServerMarks) return;
-        this.lastReceivedServerMarks = { ...latestServerMarks };
-        this.initialMarksSynced = true;
-        if (this.editor) {
-          this.editor.action((innerCtx) => {
-            const innerView = innerCtx.get(editorViewCtx);
-            applyRemoteMarks(innerView, latestServerMarks!, { hydrateAnchors: this.collabCanEdit });
-            const stats = getAuthorshipStats(innerView);
-            this.bridge.authorshipStatsUpdated(stats);
-          });
-        }
+        this.applyShareMutationSnapshot(latestServerMarkdown, latestServerMarks);
         if (acceptedCount > 0) {
           captureEvent('suggestion_accepted', { count: acceptedCount });
         }

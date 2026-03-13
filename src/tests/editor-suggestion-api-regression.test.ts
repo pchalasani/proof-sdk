@@ -33,21 +33,24 @@ function run(): void {
   const markAcceptBlock = sliceBetween(editorSource, '  markAccept(markId: string): boolean {', '\n  /**\n   * Reject a suggestion without changing the document\n   */');
   assert(
     markAcceptBlock.includes('void shareClient.acceptSuggestion(markId, actor).then((result) => {')
+      && markAcceptBlock.includes('this.applyShareMutationSnapshot(authoritativeMarkdown, serverMarks);')
       && markAcceptBlock.includes("console.error('[markAccept] Failed to persist suggestion acceptance via share mutation:', error);"),
-    'Expected markAccept to persist accepted suggestions through the share mutation route',
+    'Expected markAccept to persist accepted suggestions through the share mutation route and apply the authoritative snapshot locally',
   );
 
   const markAcceptAllBlock = sliceBetween(editorSource, '  markAcceptAll(): number {', '\n  /**\n   * Reject all pending suggestions\n   */');
   assert(
     markAcceptAllBlock.includes('acceptedIds = getPendingSuggestions(getMarks(view.state)).map((mark) => mark.id);')
-      && markAcceptAllBlock.includes('const result = await shareClient.acceptSuggestion(suggestionId, actor);'),
-    'Expected markAcceptAll to persist each accepted suggestion through share mutations',
+      && markAcceptAllBlock.includes('const result = await shareClient.acceptSuggestion(suggestionId, actor);')
+      && markAcceptAllBlock.includes('this.applyShareMutationSnapshot(latestServerMarkdown, latestServerMarks);'),
+    'Expected markAcceptAll to persist each accepted suggestion through share mutations and apply the final authoritative snapshot locally',
   );
 
   assert(
     shareClientSource.includes('async acceptSuggestion(')
-      && shareClientSource.includes("/agent/${encodeURIComponent(this.slug)}/marks/accept"),
-    'Expected ShareClient to expose a dedicated acceptSuggestion mutation',
+      && shareClientSource.includes("/agent/${encodeURIComponent(this.slug)}/marks/accept")
+      && shareClientSource.includes("markdown: typeof payload?.markdown === 'string' ? payload.markdown : undefined,"),
+    'Expected ShareClient to expose a dedicated acceptSuggestion mutation and surface authoritative markdown in the response',
   );
 
   const acceptRouteBlock = sliceBetween(
