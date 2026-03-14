@@ -331,6 +331,27 @@ async function finalizeRehydratedState(
   };
 }
 
+function mergeUnhydratedStoredMarks(
+  originalMarks: Record<string, StoredMark>,
+  repairedMarks: Record<string, StoredMark>,
+  hydratedMarkIds: string[],
+  targetMarkId: string,
+): Record<string, StoredMark> {
+  const hydrated = new Set(hydratedMarkIds);
+  const merged: Record<string, StoredMark> = {};
+
+  for (const [id, mark] of Object.entries(originalMarks)) {
+    if (id === targetMarkId) continue;
+    if (hydrated.has(id)) continue;
+    merged[id] = mark;
+  }
+
+  return canonicalizeStoredMarks({
+    ...merged,
+    ...repairedMarks,
+  });
+}
+
 export async function rehydrateProofMarksMarkdown(
   markdown: string,
   marks: Record<string, StoredMark>,
@@ -372,15 +393,6 @@ export async function finalizeSuggestionThroughRehydration(args: {
       rehydrated.missingRequiredIds,
     );
   }
-  if (rehydrated.missingRequiredIds.length > 0) {
-    return missingMarkFailure(
-      'REQUIRED_MARKS_MISSING',
-      'One or more stored Proof marks could not be rehydrated safely',
-      rehydrated.strippedMarkdown,
-      rehydrated.hydratedIds,
-      rehydrated.missingRequiredIds,
-    );
-  }
 
   const didApply = args.action === 'accept'
     ? acceptMark(rehydrated.view as EditorView, args.markId, rehydrated.parseMarkdown as never)
@@ -395,5 +407,23 @@ export async function finalizeSuggestionThroughRehydration(args: {
     );
   }
 
-  return finalizeRehydratedState(rehydrated.strippedMarkdown, rehydrated.view.state);
+  const finalized = await finalizeRehydratedState(
+    rehydrated.strippedMarkdown,
+    rehydrated.view.state,
+  );
+  const mergedMarks = mergeUnhydratedStoredMarks(
+    canonicalMarks,
+    finalized.marks,
+    rehydrated.hydratedIds,
+    args.markId,
+  );
+
+  return {
+    ...finalized,
+    marks: mergedMarks,
+    missingRequiredMarkIds: buildMissingRequiredMarkIds(
+      collectRequiredHydrationIds(mergedMarks, finalized.markdown),
+      finalized.hydratedMarkIds,
+    ),
+  };
 }
