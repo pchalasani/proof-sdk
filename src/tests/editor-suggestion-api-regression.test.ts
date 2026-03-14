@@ -46,10 +46,19 @@ function run(): void {
     'Expected markAcceptAll to persist each accepted suggestion through share mutations and apply the final authoritative snapshot locally',
   );
 
+  const shareClientAcceptBlock = sliceBetween(
+    shareClientSource,
+    '  async acceptSuggestion(',
+    '\n  async disconnectAgentPresence(',
+  );
   assert(
-    shareClientSource.includes('async acceptSuggestion(')
-      && shareClientSource.includes("/agent/${encodeURIComponent(this.slug)}/marks/accept")
-      && shareClientSource.includes("markdown: typeof payload?.markdown === 'string' ? payload.markdown : undefined,"),
+    shareClientAcceptBlock.includes("/agent/${encodeURIComponent(this.slug)}/marks/accept")
+      && shareClientAcceptBlock.includes(
+        "markdown: typeof payload?.markdown === 'string' ? payload.markdown : undefined,",
+      )
+      && shareClientAcceptBlock.includes(
+        "content: typeof payload?.content === 'string' ? payload.content : undefined,",
+      ),
     'Expected ShareClient to expose a dedicated acceptSuggestion mutation and surface authoritative markdown in the response',
   );
 
