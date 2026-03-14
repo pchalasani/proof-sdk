@@ -10,7 +10,6 @@ import {
   rebuildDocumentBlocks,
   resolveDocumentAccessRole,
   storeIdempotencyResult,
-  updateDocument,
   updateDocumentAtomic,
   updateDocumentAtomicByRevision,
 } from './db.js';
@@ -1033,15 +1032,38 @@ function notifyCollabMutation(
               invalidateLoadedCollabDocument(slug);
               return { confirmed: false, reason: 'missing_document' };
             }
-            const repaired = updateDocument(slug, targetMarkdown, targetMarks);
-            if (!repaired) {
+
+            const refreshedMarkdown = typeof refreshed.markdown === 'string'
+              ? refreshed.markdown
+              : '';
+            const refreshedMarks = parseCanonicalMarks(refreshed.marks);
+            const refreshedHash = hashCanonicalDocument(
+              refreshedMarkdown,
+              refreshedMarks,
+            );
+            canonicalObservedHash = refreshedHash;
+            if (refreshedHash !== canonicalExpectedHash) {
+              reason = 'canonical_changed_before_fallback';
+              canonicalConfirmed = false;
               invalidateLoadedCollabDocument(slug);
-              return { confirmed: false, reason: 'canonical_repair_failed' };
+              return {
+                confirmed: false,
+                reason,
+                markdownConfirmed,
+                fragmentConfirmed,
+                canonicalConfirmed,
+                canonicalExpectedHash,
+                canonicalObservedHash,
+                expectedFragmentTextHash,
+                liveFragmentTextHash,
+                presenceApplied: false,
+                cursorApplied: false,
+              };
             }
 
             const retry = await applyCanonicalDocumentToCollabWithVerification(slug, {
-              markdown: targetMarkdown,
-              marks: targetMarks,
+              markdown: refreshedMarkdown,
+              marks: refreshedMarks,
               source: `${options.source ?? 'agent'}-fallback`,
             }, REWRITE_COLLAB_TIMEOUT_MS);
             confirmed = retry.confirmed;
@@ -1069,8 +1091,16 @@ function notifyCollabMutation(
                 liveFragmentTextHash,
               });
             }
-            if (confirmed && targetMarkdown && (options.stabilityMs ?? 0) > 0) {
-              const stable = await verifyLoadedCollabMarkdownStable(slug, targetMarkdown, options.stabilityMs as number);
+            if (
+              confirmed
+              && refreshedMarkdown
+              && (options.stabilityMs ?? 0) > 0
+            ) {
+              const stable = await verifyLoadedCollabMarkdownStable(
+                slug,
+                refreshedMarkdown,
+                options.stabilityMs as number,
+              );
               if (!stable) {
                 confirmed = false;
                 reason = 'stability_regressed';
@@ -1093,8 +1123,8 @@ function notifyCollabMutation(
             if (confirmed && (options.stabilityMs ?? 0) > 0) {
               const canonical = await verifyCanonicalDocumentStable(
                 slug,
-                targetMarkdown,
-                targetMarks,
+                refreshedMarkdown,
+                refreshedMarks,
                 options.stabilityMs as number,
               );
               canonicalConfirmed = canonical.stable;
