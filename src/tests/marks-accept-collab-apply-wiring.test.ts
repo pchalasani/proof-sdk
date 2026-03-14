@@ -15,6 +15,10 @@ assert(
   'Expected /marks/accept to use the marks.accept collab source',
 );
 assert(
+  acceptRouteMatch[0].includes('fallbackBarrier: true'),
+  'Expected /marks/accept to use the rewrite barrier fallback during live collab verification',
+);
+assert(
   !acceptRouteMatch[0].includes('apply: false'),
   'Expected /marks/accept to reapply canonical markdown into collab after acceptance',
 );
