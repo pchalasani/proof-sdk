@@ -46,6 +46,19 @@ function run(): void {
     'Expected stability_regressed to remain a fatal marks/accept collab failure',
   );
 
+  const canonicalFailureThenLiveDocUnavailable = {
+    confirmed: false,
+    reason: 'live_doc_unavailable',
+    markdownConfirmed: false,
+    fragmentConfirmed: false,
+    canonicalConfirmed: false,
+  };
+  assert(
+    shouldTreatMarksAcceptCollabAsFatal(canonicalFailureThenLiveDocUnavailable)
+      === true,
+    'Expected canonical convergence failures to stay fatal even if the final reason is live_doc_unavailable',
+  );
+
   console.log('✓ marks/accept treats live_doc_unavailable as pending success');
 }
 

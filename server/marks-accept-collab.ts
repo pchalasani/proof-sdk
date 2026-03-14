@@ -39,5 +39,6 @@ export function shouldTreatMarksAcceptCollabAsFatal(
   status: MarksAcceptCollabStatus,
 ): boolean {
   if (deriveCollabApplied(status)) return false;
+  if (status.canonicalConfirmed === false) return true;
   return !NON_FATAL_MARKS_ACCEPT_REASONS.has(status.reason ?? '');
 }
