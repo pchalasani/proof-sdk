@@ -8425,41 +8425,9 @@ class ProofEditorImpl implements ProofEditor {
       return false;
     }
 
-    if (this.isShareMode) {
-      let canAccept = false;
-      this.editor.action((ctx) => {
-        const view = ctx.get(editorViewCtx);
-        canAccept = getPendingSuggestions(getMarks(view.state)).some((mark) => mark.id === markId);
-      });
-      if (!canAccept) {
-        console.warn('[markAccept] Suggestion not pending in share mode:', markId);
-        return false;
-      }
-
-      const actor = getCurrentActor();
-      void shareClient.acceptSuggestion(markId, actor).then((result) => {
-        if (!result || 'error' in result || result.success !== true) return;
-        const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
-          ? result.marks as Record<string, StoredMark>
-          : null;
-        if (!serverMarks) return;
-        this.lastReceivedServerMarks = { ...serverMarks };
-        this.initialMarksSynced = true;
-        if (this.editor) {
-          this.editor.action((innerCtx) => {
-            const innerView = innerCtx.get(editorViewCtx);
-            applyRemoteMarks(innerView, serverMarks, { hydrateAnchors: this.collabCanEdit });
-            const stats = getAuthorshipStats(innerView);
-            this.bridge.authorshipStatsUpdated(stats);
-          });
-        }
-        captureEvent('suggestion_accepted', { count: 1 });
-      }).catch((error) => {
-        console.error('[markAccept] Failed to persist suggestion acceptance via share mutation:', error);
-      });
-      return true;
-    }
-
+    // Share mode: accept locally via ProseMirror, let y-prosemirror
+    // sync the change to all clients via Yjs. Fire-and-forget server
+    // sync for metadata cleanup (same pattern as markReject).
     let success = false;
     this.editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
@@ -8556,48 +8524,9 @@ class ProofEditorImpl implements ProofEditor {
       return 0;
     }
 
-    if (this.isShareMode) {
-      let acceptedIds: string[] = [];
-      this.editor.action((ctx) => {
-        const view = ctx.get(editorViewCtx);
-        acceptedIds = getPendingSuggestions(getMarks(view.state)).map((mark) => mark.id);
-      });
-      if (acceptedIds.length === 0) return 0;
-
-      const actor = getCurrentActor();
-      void (async () => {
-        let latestServerMarks: Record<string, StoredMark> | null = null;
-        let acceptedCount = 0;
-        for (const suggestionId of acceptedIds) {
-          const result = await shareClient.acceptSuggestion(suggestionId, actor);
-          if (!result || 'error' in result || result.success !== true) continue;
-          const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
-            ? result.marks as Record<string, StoredMark>
-            : null;
-          if (!serverMarks) continue;
-          latestServerMarks = serverMarks;
-          acceptedCount += 1;
-        }
-        if (!latestServerMarks) return;
-        this.lastReceivedServerMarks = { ...latestServerMarks };
-        this.initialMarksSynced = true;
-        if (this.editor) {
-          this.editor.action((innerCtx) => {
-            const innerView = innerCtx.get(editorViewCtx);
-            applyRemoteMarks(innerView, latestServerMarks!, { hydrateAnchors: this.collabCanEdit });
-            const stats = getAuthorshipStats(innerView);
-            this.bridge.authorshipStatsUpdated(stats);
-          });
-        }
-        if (acceptedCount > 0) {
-          captureEvent('suggestion_accepted', { count: acceptedCount });
-        }
-      })().catch((error) => {
-        console.error('[markAcceptAll] Failed to persist suggestion acceptance via share mutation:', error);
-      });
-      return acceptedIds.length;
-    }
-
+    // Share mode: accept all locally via ProseMirror, let
+    // y-prosemirror sync changes to all clients via Yjs.
+    // Fire-and-forget server sync for metadata cleanup.
     let count = 0;
     let acceptedIds: string[] = [];
     this.editor.action((ctx) => {
