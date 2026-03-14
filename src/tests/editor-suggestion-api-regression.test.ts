@@ -71,8 +71,9 @@ function run(): void {
     acceptRouteBlock.includes('const collabStatus = await notifyCollabMutation(')
       && acceptRouteBlock.includes('verify: true')
       && acceptRouteBlock.includes("source: 'marks.accept'")
+      && acceptRouteBlock.includes('shouldTreatMarksAcceptCollabAsFatal(collabStatus)')
       && acceptRouteBlock.includes("code: 'COLLAB_SYNC_FAILED'"),
-    'Expected /marks/accept to await verified collab convergence before returning success',
+    'Expected /marks/accept to soft-accept live_doc_unavailable while preserving hard collab failures',
   );
 
   console.log('✓ suggestion API actions route through share-aware accept/reject persistence');

@@ -41,6 +41,10 @@ import {
   deriveCursorApplied,
   derivePresenceApplied,
 } from './agent-collab-status.js';
+import {
+  buildMarksAcceptCollabMetadata,
+  shouldTreatMarksAcceptCollabAsFatal,
+} from './marks-accept-collab.js';
 import { executeDocumentOperation, executeDocumentOperationAsync } from './document-engine.js';
 import {
   recordAgentMutation,
@@ -2185,19 +2189,15 @@ agentRoutes.post('/:slug/marks/accept', async (req: Request, res: Response) => {
         strictLiveDoc: true,
       },
     );
+    const marksAcceptCollab = buildMarksAcceptCollabMetadata(collabStatus);
     if (isRecord(result.body)) {
       result.body = {
         ...result.body,
-        collab: {
-          status: collabStatus.confirmed ? 'confirmed' : 'pending',
-          reason: collabStatus.reason ?? (collabStatus.confirmed ? 'confirmed' : 'sync_timeout'),
-          markdownConfirmed: collabStatus.markdownConfirmed ?? null,
-          fragmentConfirmed: collabStatus.fragmentConfirmed ?? null,
-          canonicalConfirmed: collabStatus.canonicalConfirmed ?? null,
-        },
+        collabApplied: marksAcceptCollab.collabApplied,
+        collab: marksAcceptCollab.collab,
       };
     }
-    if (!collabStatus.confirmed) {
+    if (shouldTreatMarksAcceptCollabAsFatal(collabStatus)) {
       sendMutationResponse(
         res,
         409,
@@ -2205,15 +2205,9 @@ agentRoutes.post('/:slug/marks/accept', async (req: Request, res: Response) => {
           success: false,
           code: 'COLLAB_SYNC_FAILED',
           error: 'Suggestion acceptance did not converge to live collaboration state',
-          reason: collabStatus.reason ?? 'sync_timeout',
+          reason: marksAcceptCollab.collab.reason,
           retryWithState: `/api/agent/${slug}/state`,
-          collab: {
-            status: 'pending',
-            reason: collabStatus.reason ?? 'sync_timeout',
-            markdownConfirmed: collabStatus.markdownConfirmed ?? null,
-            fragmentConfirmed: collabStatus.fragmentConfirmed ?? null,
-            canonicalConfirmed: collabStatus.canonicalConfirmed ?? null,
-          },
+          collab: marksAcceptCollab.collab,
         },
         { route: mutationRoute, slug, retryWithState: `/api/agent/${slug}/state` },
       );
