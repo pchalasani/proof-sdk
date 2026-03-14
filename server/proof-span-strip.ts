@@ -140,6 +140,7 @@ function isGapFullyCovered(
 }
 
 function buildReplacementGroups(
+  stripped: string,
   proofRanges: ProofRange[],
   replacementsById: Record<string, string>,
 ): Array<{ start: number; end: number; replacement: string }> {
@@ -174,14 +175,20 @@ function buildReplacementGroups(
         continue;
       }
       if (currentEnd > currentStart) {
-        groups.push({ start: currentStart, end: currentEnd, replacement });
+        const actualText = stripped.slice(currentStart, currentEnd);
+        if (normalizeComparableProofText(actualText) !== normalizeComparableProofText(replacement)) {
+          groups.push({ start: currentStart, end: currentEnd, replacement });
+        }
       }
       currentStart = next.start;
       currentEnd = next.end;
     }
 
     if (currentEnd > currentStart) {
-      groups.push({ start: currentStart, end: currentEnd, replacement });
+      const actualText = stripped.slice(currentStart, currentEnd);
+      if (normalizeComparableProofText(actualText) !== normalizeComparableProofText(replacement)) {
+        groups.push({ start: currentStart, end: currentEnd, replacement });
+      }
     }
   }
 
@@ -214,6 +221,34 @@ function applyReplacementGroups(
   return result;
 }
 
+function normalizeComparableProofText(markdown: string): string {
+  let text = markdown ?? '';
+
+  text = text.replace(/<\/?(?:p|br|div|li)\b[^>]*>/gi, ' ');
+  text = text.replace(/<[^>]+>/g, '');
+  text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1');
+  text = text.replace(/```([\s\S]*?)```/g, '$1');
+  text = text.replace(/~~~([\s\S]*?)~~~/g, '$1');
+  text = text.replace(/`([^`]+)`/g, '$1');
+  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1');
+  text = text.replace(/(?<!\w)___([^_]+)___(?!\w)/g, '$1');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  text = text.replace(/(?<!\w)__([^_]+)__(?!\w)/g, '$1');
+  text = text.replace(/\*([^*]+)\*/g, '$1');
+  text = text.replace(/(?<!\w)_([^_]+)_(?!\w)/g, '$1');
+  text = text.replace(/~~([^~]+)~~/g, '$1');
+  text = text.replace(/^[ \t]*#{1,6}[ \t]+/gm, '');
+  text = text.replace(/^[ \t]*>[ \t]?/gm, '');
+  text = text.replace(/^[ \t]*(?:[-*+]|\d+\.)[ \t]+/gm, '');
+  text = text.replace(/^[ \t]*\[(?: |x|X)\][ \t]+/gm, '');
+  text = text.replace(/^[ \t]*([-*_]){3,}[ \t]*$/gm, '');
+  text = text.replace(/\\([\\`*_{}\[\]()#+\-.!])/g, '$1');
+
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function stripProofSpanTagsInternal(
   markdown: string,
   shouldStrip: (tag: string) => boolean,
@@ -221,7 +256,10 @@ function stripProofSpanTagsInternal(
 ): string {
   if (replacementsById) {
     const { stripped, proofRanges } = collectStrippedProofData(markdown, shouldStrip);
-    return applyReplacementGroups(stripped, buildReplacementGroups(proofRanges, replacementsById));
+    return applyReplacementGroups(
+      stripped,
+      buildReplacementGroups(stripped, proofRanges, replacementsById),
+    );
   }
 
   const spanTagRegex = /<\/?span\b[^>]*>/gi;

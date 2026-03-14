@@ -84,6 +84,22 @@ function run(): void {
     'Expected replacement-aware stripping to rebuild split suggestion spans once per logical mark',
   );
 
+  const normalizedCommentMarkdown = [
+    '<span data-proof="comment" data-id="c3" data-by="human:test">Hello   world</span>',
+    ' Hello world',
+  ].join('');
+  const normalizedCommentBase = stripAllProofSpanTagsWithReplacements(
+    normalizedCommentMarkdown,
+    {
+      c3: 'Hello world',
+    },
+  );
+  assertEqual(
+    normalizedCommentBase,
+    'Hello   world Hello world',
+    'Expected replacement-aware stripping to preserve exact span text when it already renders to the stored quote',
+  );
+
   console.log('✓ proof span stripping preserves non-authored marks');
 }
 
