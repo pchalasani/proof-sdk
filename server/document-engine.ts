@@ -21,9 +21,22 @@ import {
 import { mutateCanonicalDocument } from './canonical-document.js';
 import { canonicalizeStoredMarks } from '../src/formats/marks.js';
 import {
+  buildTextIndex,
+  mapTextOffsetsToRange,
+  resolveQuoteRange,
+} from '../src/editor/utils/text-range.js';
+import {
   finalizeSuggestionThroughRehydration,
   type ProofMarkRehydrationFailure,
 } from './proof-mark-rehydration.js';
+import {
+  buildProofSpanReplacementMap,
+  stripAllProofSpanTagsWithReplacements,
+} from './proof-span-strip.js';
+import {
+  getHeadlessMilkdownParser,
+  parseMarkdownWithHtmlFallback,
+} from './milkdown-headless.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -539,6 +552,12 @@ type QuoteAnchor = {
   strippedEnd: number;
 };
 
+type ParsedQuoteAnchor = {
+  range: { from: number; to: number };
+  startRel: string;
+  endRel: string;
+};
+
 function findQuoteAnchorInMarkdown(markdown: string, quote: string): QuoteAnchor | null {
   if (!quote) return null;
   const { stripped, map } = stripMarkdownWithMapping(markdown);
@@ -615,6 +634,59 @@ function findRawQuoteSpanInMarkdown(markdown: string, quote: string): { start: n
   const anchor = findQuoteAnchorInMarkdown(markdown, quote);
   if (!anchor) return null;
   return { start: anchor.rawStart, end: anchor.rawEnd };
+}
+
+function buildRelativeAnchorsFromParsedRange(
+  doc: Parameters<typeof buildTextIndex>[0],
+  range: { from: number; to: number },
+): { startRel: string; endRel: string } | null {
+  const index = buildTextIndex(doc);
+  if (!index) return null;
+
+  let startOffset = -1;
+  let endOffset = -1;
+  for (let i = 0; i < index.positions.length; i += 1) {
+    const pos = index.positions[i];
+    if (typeof pos !== 'number') continue;
+    if (startOffset < 0 && pos >= range.from) {
+      startOffset = i;
+    }
+    if (pos < range.to) {
+      endOffset = i + 1;
+    }
+  }
+
+  if (startOffset < 0 || endOffset <= startOffset) return null;
+  const mappedRange = mapTextOffsetsToRange(index, startOffset, endOffset);
+  if (!mappedRange || mappedRange.from !== range.from || mappedRange.to !== range.to) return null;
+  return {
+    startRel: `char:${startOffset}`,
+    endRel: `char:${endOffset}`,
+  };
+}
+
+async function findQuoteAnchorInParsedMarkdown(
+  markdown: string,
+  quote: string,
+  marks: Record<string, StoredMark>,
+): Promise<ParsedQuoteAnchor | null> {
+  if (!quote) return null;
+  const strippedMarkdown = stripAllProofSpanTagsWithReplacements(
+    markdown ?? '',
+    buildProofSpanReplacementMap(marks),
+  );
+  const parser = await getHeadlessMilkdownParser();
+  const parsed = parseMarkdownWithHtmlFallback(parser, strippedMarkdown);
+  if (!parsed.doc) return null;
+  const range = resolveQuoteRange(parsed.doc, quote);
+  if (!range) return null;
+  const relativeAnchors = buildRelativeAnchorsFromParsedRange(parsed.doc, range);
+  if (!relativeAnchors) return null;
+  return {
+    range,
+    startRel: relativeAnchors.startRel,
+    endRel: relativeAnchors.endRel,
+  };
 }
 
 function findQuoteSpanInMarkdown(markdown: string, quote: string): { start: number; end: number } | null {
@@ -1046,18 +1118,18 @@ async function addSuggestionAsync(
   context?: AsyncDocumentMutationContext,
 ): Promise<EngineExecutionResult> {
   const requestedStatus = typeof body.status === 'string' ? body.status.trim().toLowerCase() : 'pending';
-  if (!requestedStatus || requestedStatus === 'pending') {
-    return addSuggestion(slug, body, kind);
-  }
+  const pendingStatus = !requestedStatus || requestedStatus === 'pending';
   if (requestedStatus !== 'accepted') {
-    return {
-      status: 422,
-      body: {
-        success: false,
-        code: 'INVALID_STATUS',
-        error: 'suggestion.add only supports status "pending" or "accepted"',
-      },
-    };
+    if (!pendingStatus) {
+      return {
+        status: 422,
+        body: {
+          success: false,
+          code: 'INVALID_STATUS',
+          error: 'suggestion.add only supports status "pending" or "accepted"',
+        },
+      };
+    }
   }
 
   const ready = getMutationReadyDocument(slug, context);
@@ -1071,8 +1143,9 @@ async function addSuggestionAsync(
   if (!quote) {
     return { status: 400, body: { success: false, error: 'Missing quote' } };
   }
-  const anchor = findQuoteAnchorInMarkdown(doc.markdown, quote);
-  if (!anchor) {
+  const marks = parseMarks(doc.marks);
+  const parsedAnchor = await findQuoteAnchorInParsedMarkdown(doc.markdown, quote, marks);
+  if (!parsedAnchor) {
     return {
       status: 409,
       body: { success: false, code: 'ANCHOR_NOT_FOUND', error: 'Suggestion anchor quote not found in document' },
@@ -1084,7 +1157,6 @@ async function addSuggestionAsync(
 
   const id = randomUUID();
   const now = new Date().toISOString();
-  const marks = parseMarks(doc.marks);
   const providedRange = isRecord(body.range)
     && Number.isFinite(body.range.from)
     && Number.isFinite(body.range.to)
@@ -1096,12 +1168,26 @@ async function addSuggestionAsync(
     by,
     createdAt: now,
     quote,
-    status: 'accepted',
+    status: pendingStatus ? 'pending' : 'accepted',
     ...(kind !== 'delete' ? { content: body.content as string } : {}),
-    startRel: typeof body.startRel === 'string' && body.startRel.trim() ? body.startRel.trim() : `char:${anchor.strippedStart}`,
-    endRel: typeof body.endRel === 'string' && body.endRel.trim() ? body.endRel.trim() : `char:${anchor.strippedEnd}`,
-    ...(providedRange ? { range: providedRange } : {}),
+    startRel: typeof body.startRel === 'string' && body.startRel.trim()
+      ? body.startRel.trim()
+      : parsedAnchor.startRel,
+    endRel: typeof body.endRel === 'string' && body.endRel.trim()
+      ? body.endRel.trim()
+      : parsedAnchor.endRel,
+    range: providedRange ?? parsedAnchor.range,
   };
+
+  if (pendingStatus) {
+    marks[id] = suggestion;
+    return persistMarks(slug, marks, by, `suggestion.${kind}.added`, {
+      markId: id,
+      by,
+      quote,
+      content: typeof body.content === 'string' ? body.content : undefined,
+    });
+  }
 
   const structuredAccepted = await finalizeSuggestionThroughRehydration({
     markdown: doc.markdown,
