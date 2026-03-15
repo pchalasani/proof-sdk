@@ -64,6 +64,16 @@
       --text-align: justify;
     }
 
+    /* Google Docs-like page layout for share mode */
+    body[data-share-mode="true"] {
+      --bg-color: white;
+      --font-family: "Arial", "Helvetica Neue", Helvetica,
+        sans-serif;
+      --font-size: 11pt;
+      --line-height: 1.5;
+      --content-max-width: 816px;
+    }
+
     body {
       font-family: var(--font-family);
       font-size: var(--font-size);
@@ -113,10 +123,45 @@
       outline: none;
     }
 
-    /* Share mode: comfortable reading/writing width */
+    /* Share mode: Google Docs-like page appearance */
+    body[data-share-mode="true"] {
+      background: #f0f0f0;
+    }
+
+    body[data-share-mode="true"] #editor-container {
+      background: white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.08);
+      margin: 20px auto;
+      border-radius: 2px;
+    }
+
     body[data-share-mode="true"] #editor {
-      padding: 80px 80px 40px;
-      padding-left: calc(var(--provenance-bar-width) + 80px);
+      padding: 96px 96px 96px;
+      padding-left: calc(var(--provenance-bar-width) + 96px);
+    }
+
+    /* Table borders in share mode */
+    body[data-share-mode="true"] .milkdown table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 1em;
+    }
+
+    body[data-share-mode="true"] .milkdown th,
+    body[data-share-mode="true"] .milkdown td {
+      border: 1px solid #dadce0;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    body[data-share-mode="true"] .milkdown th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+
+    body[data-share-mode="true"] .milkdown tr:hover td {
+      background: #f8f9fa;
     }
 
     /* Milkdown editor styles */
