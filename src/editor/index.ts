@@ -1148,6 +1148,7 @@ class ProofEditorImpl implements ProofEditor {
 
     this.isCliMode = fileClient.isCliMode();
     this.isShareMode = shareClient.isShareMode();
+    document.body.dataset.shareMode = String(this.isShareMode);
   }
 
   async init(): Promise<void> {
@@ -1640,6 +1641,7 @@ class ProofEditorImpl implements ProofEditor {
     if (this.shareRuntimeActivationInFlight) return false;
     const hasShareConfig = shareClient.refreshRuntimeConfig();
     this.isShareMode = hasShareConfig;
+    document.body.dataset.shareMode = String(hasShareConfig);
     if (!hasShareConfig) return false;
     this.collabCanComment = false;
     this.collabCanEdit = false;
