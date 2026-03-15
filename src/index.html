@@ -212,6 +212,18 @@
       color: #1a73e8;
     }
 
+    /* Page break indicators every 1056px (US Letter) */
+    body[data-share-mode="true"] #editor {
+      background-image: linear-gradient(
+        to bottom,
+        transparent calc(1056px - 1px),
+        #cbd5e1 1056px,
+        transparent calc(1056px + 1px)
+      );
+      background-size: 100% 1056px;
+      background-repeat: repeat-y;
+    }
+
     /* Milkdown editor styles */
     .milkdown {
       outline: none;
