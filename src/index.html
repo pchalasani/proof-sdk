@@ -70,7 +70,7 @@
       --font-family: "Arial", "Helvetica Neue", Helvetica,
         sans-serif;
       --font-size: 11pt;
-      --line-height: 1.5;
+      --line-height: 1.15;
       --content-max-width: 816px;
     }
 
@@ -162,6 +162,54 @@
 
     body[data-share-mode="true"] .milkdown tr:hover td {
       background: #f8f9fa;
+    }
+
+    /* Google Docs heading sizes */
+    body[data-share-mode="true"] .milkdown h1 {
+      font-size: 20pt;
+      font-weight: 700;
+      margin-top: 20pt;
+      margin-bottom: 6pt;
+      color: #1a1a1a;
+      text-align: left;
+    }
+
+    body[data-share-mode="true"] .milkdown h2 {
+      font-size: 16pt;
+      font-weight: 700;
+      margin-top: 18pt;
+      margin-bottom: 6pt;
+      color: #1a1a1a;
+      text-align: left;
+    }
+
+    body[data-share-mode="true"] .milkdown h3 {
+      font-size: 14pt;
+      font-weight: 700;
+      margin-top: 16pt;
+      margin-bottom: 4pt;
+      color: #434343;
+      text-align: left;
+    }
+
+    body[data-share-mode="true"] .milkdown h4 {
+      font-size: 12pt;
+      font-weight: 700;
+      margin-top: 14pt;
+      margin-bottom: 4pt;
+      color: #666666;
+      text-align: left;
+    }
+
+    /* Google Docs list indentation */
+    body[data-share-mode="true"] .milkdown ul,
+    body[data-share-mode="true"] .milkdown ol {
+      padding-left: 36pt;
+    }
+
+    /* Google Docs link color */
+    body[data-share-mode="true"] .milkdown a {
+      color: #1a73e8;
     }
 
     /* Milkdown editor styles */
