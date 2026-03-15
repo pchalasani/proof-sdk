@@ -1360,10 +1360,7 @@ function addComment(
     const normalizedMarkdown = normalizeQuote(doc.markdown);
     const normalizedPlain = normalizeMarkdownForQuote(doc.markdown);
     if (!normalizedMarkdown.includes(quote) && !normalizedPlain.includes(quote)) {
-      return {
-        status: 409,
-        body: { success: false, code: 'ANCHOR_NOT_FOUND', error: 'Comment anchor quote not found in document' },
-      };
+      console.warn('[document-engine] anchor not found in canonical markdown, deferring to browser', { slug, quote: quote.slice(0, 80) });
     }
   }
 
@@ -1432,10 +1429,7 @@ async function addCommentAsync(
     const normalizedMarkdown = normalizeQuote(doc.markdown);
     const normalizedPlain = normalizeMarkdownForQuote(doc.markdown);
     if (!normalizedMarkdown.includes(quote) && !normalizedPlain.includes(quote)) {
-      return {
-        status: 409,
-        body: { success: false, code: 'ANCHOR_NOT_FOUND', error: 'Comment anchor quote not found in document' },
-      };
+      console.warn('[document-engine] anchor not found in canonical markdown, deferring to browser', { slug, quote: quote.slice(0, 80) });
     }
   }
 
@@ -1807,10 +1801,11 @@ async function addSuggestionAsync(
       const normalizedMarkdown = normalizeQuote(doc.markdown);
       const normalizedPlain = normalizeMarkdownForQuote(doc.markdown);
       if (!normalizedMarkdown.includes(quote) && !normalizedPlain.includes(quote)) {
-        return {
-          status: 409,
-          body: { success: false, code: 'ANCHOR_NOT_FOUND', error: 'Suggestion anchor quote not found in document' },
-        };
+        // Anchor not found in server's canonical markdown.
+        // Log a warning but proceed — the browser's
+        // applyRemoteMarks will resolve the anchor against
+        // the live ProseMirror doc via Yjs sync.
+        console.warn('[document-engine] suggestion anchor not found in canonical markdown, deferring to browser', { slug, quote: quote.slice(0, 80) });
       }
     }
 
@@ -1891,10 +1886,7 @@ async function addSuggestionAsync(
   } else {
     const anchorCheck = findQuoteAnchorInMarkdown(doc.markdown, quote);
     if (!anchorCheck) {
-      return {
-        status: 409,
-        body: { success: false, code: 'ANCHOR_NOT_FOUND', error: 'Suggestion anchor quote not found in document' },
-      };
+      console.warn('[document-engine] suggestion anchor not found in canonical markdown, deferring to browser', { slug, quote: quote.slice(0, 80) });
     }
   }
 
