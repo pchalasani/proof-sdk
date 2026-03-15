@@ -8440,26 +8440,9 @@ class ProofEditorImpl implements ProofEditor {
         const metadata = getMarkMetadataWithQuotes(view.state);
         this.lastReceivedServerMarks = { ...metadata };
         this.initialMarksSynced = true;
-
-        const actor = getCurrentActor();
-        void shareClient.acceptSuggestion(markId, actor).then((result) => {
-          if (!result || 'error' in result || result.success !== true) return;
-          const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
-            ? result.marks as Record<string, StoredMark>
-            : null;
-          if (!serverMarks) return;
-          this.lastReceivedServerMarks = { ...serverMarks };
-          this.initialMarksSynced = true;
-          if (this.editor) {
-            this.editor.action((innerCtx) => {
-              const innerView = innerCtx.get(editorViewCtx);
-              const mergedMetadata = mergePendingServerMarks(getMarkMetadataWithQuotes(innerView.state), serverMarks);
-              setMarkMetadata(innerView, mergedMetadata);
-            });
-          }
-        }).catch((error) => {
-          console.error('[markAccept] Failed to persist suggestion acceptance via share mutation:', error);
-        });
+        // No server call — local ProseMirror accept + Yjs
+        // sync handles everything. The fire-and-forget POST
+        // to /marks/accept was causing cascading failures.
       }
       if (success) {
         captureEvent('suggestion_accepted', { count: 1 });
@@ -8541,31 +8524,8 @@ class ProofEditorImpl implements ProofEditor {
         const metadata = getMarkMetadataWithQuotes(view.state);
         this.lastReceivedServerMarks = { ...metadata };
         this.initialMarksSynced = true;
-
-        const actor = getCurrentActor();
-        void (async () => {
-          let latestServerMarks: Record<string, StoredMark> | null = null;
-          for (const suggestionId of acceptedIds) {
-            const result = await shareClient.acceptSuggestion(suggestionId, actor);
-            if (!result || 'error' in result || result.success !== true) continue;
-            const serverMarks = (result.marks && typeof result.marks === 'object' && !Array.isArray(result.marks))
-              ? result.marks as Record<string, StoredMark>
-              : null;
-            if (!serverMarks) continue;
-            latestServerMarks = serverMarks;
-          }
-          if (!latestServerMarks) return;
-          this.lastReceivedServerMarks = { ...latestServerMarks };
-          this.initialMarksSynced = true;
-          if (this.editor) {
-            this.editor.action((innerCtx) => {
-              const innerView = innerCtx.get(editorViewCtx);
-              applyRemoteMarks(innerView, latestServerMarks!, { hydrateAnchors: this.collabCanEdit });
-            });
-          }
-        })().catch((error) => {
-          console.error('[markAcceptAll] Failed to persist suggestion acceptance via share mutation:', error);
-        });
+        // No server call — local ProseMirror accept + Yjs
+        // sync handles everything.
       }
       if (count > 0) {
         captureEvent('suggestion_accepted', { count });
