@@ -2716,7 +2716,10 @@ export function accept(view: EditorView, markId: string, parser?: MarkdownParser
   if (!mark) return false;
 
   const metadata = getMarkMetadata(view.state);
-  let tr = view.state.tr;
+  // Allow content mutations through the share-content-filter
+  // so that suggestion acceptance is not silently blocked.
+  let tr = view.state.tr
+    .setMeta(SHARE_CONTENT_FILTER_ALLOW_META, true);
   const ranges = resolveActionRangesDescending(view.state.doc, mark);
   if (ranges.length === 0) return false;
   let applied = false;
@@ -2812,7 +2815,8 @@ export function reject(view: EditorView, markId: string): boolean {
   if (!mark) return false;
 
   const metadata = getMarkMetadata(view.state);
-  let tr = view.state.tr;
+  let tr = view.state.tr
+    .setMeta(SHARE_CONTENT_FILTER_ALLOW_META, true);
   const ranges = resolveActionRangesDescending(view.state.doc, mark);
   if (ranges.length === 0) return false;
 
