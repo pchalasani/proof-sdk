@@ -30,6 +30,7 @@ import {
   upsertActiveCollabConnection,
   upsertPersistedGlobalCollabAdmissionGuard,
   updateDocument,
+  updateMarks,
   type DocumentProjectionRow,
   type DocumentRow,
   type ProjectedDocumentRow,
@@ -6893,6 +6894,37 @@ export function removeAgentPresenceFromLoadedCollab(
 
   if (!removed) return false;
   touchDoc(slug);
+  return true;
+}
+
+/**
+ * Write marks directly to the live Yjs doc, bypassing the
+ * canonical markdown persistence and quarantine pipeline.
+ * Follows the same pattern as applyAgentPresenceToLoadedCollab.
+ * Also updates SQLite so the DB stays in sync.
+ */
+export function writeMarksToLiveYjs(
+  slug: string,
+  marks: Record<string, unknown>,
+  source: string,
+): boolean {
+  if (!runtime.enabled) return false;
+  const ydoc = getLiveHocuspocusDoc(slug) ?? loadedDocs.get(slug);
+  if (!ydoc) return false;
+
+  ydoc.transact(() => {
+    applyMarksMapDiff(ydoc.getMap<unknown>('marks'), marks);
+  }, `agent-marks:${source}`);
+
+  touchDoc(slug);
+
+  // Also persist to SQLite so DB stays in sync
+  try {
+    updateMarks(slug, marks);
+  } catch (error) {
+    console.warn('[collab] writeMarksToLiveYjs: SQLite sync failed, Yjs is authoritative', { slug, error });
+  }
+
   return true;
 }
 

@@ -13,6 +13,7 @@ import {
 import { refreshSnapshotForSlug } from './snapshot.js';
 import {
   applyCanonicalDocumentToCollab,
+  writeMarksToLiveYjs,
   type AuthoritativeMutationBase,
   getCanonicalReadableDocument as getAuthoritativeCanonicalReadableDocument,
   getCanonicalReadableDocumentSync,
@@ -1233,15 +1234,21 @@ function persistMarks(slug: string, marks: Record<string, StoredMark>, actor: st
     });
   }
 
-  const ok = updateMarks(slug, normalizedMarks as unknown as Record<string, unknown>);
-  if (!ok) {
-    return { status: 500, body: { success: false, error: 'Failed to update marks' } };
+  // Yjs-first: write marks directly to the live Yjs doc,
+  // bypassing the canonical persist + quarantine pipeline.
+  // Falls back to SQLite-only if no live doc exists.
+  const yjsOk = writeMarksToLiveYjs(
+    slug,
+    normalizedMarks as unknown as Record<string, unknown>,
+    `${eventType}:${actor}`,
+  );
+  if (!yjsOk) {
+    // No live Yjs doc — fall back to SQLite-only
+    const ok = updateMarks(slug, normalizedMarks as unknown as Record<string, unknown>);
+    if (!ok) {
+      return { status: 500, body: { success: false, error: 'Failed to update marks' } };
+    }
   }
-  // Sync marks to Yjs collab layer so they aren't overwritten on next materialization
-  applyCanonicalDocumentToCollab(slug, { marks: normalizedMarks as unknown as Record<string, unknown>, source: 'engine' }).catch((error) => {
-    console.error('[document-engine] Failed to sync marks to collab projection; invalidating collab state', { slug, error });
-    invalidateCollabDocument(slug);
-  });
   const eventId = addDocumentEvent(slug, eventType, eventData, actor);
   refreshSnapshotForSlug(slug);
   const doc = getDocumentBySlug(slug);
@@ -1280,45 +1287,19 @@ async function persistMarksAsync(
     });
   }
 
-  const liveFragmentMarkdown = await getLoadedCollabMarkdownFromFragment(slug);
-  const currentRow = getDocumentBySlug(slug);
-  const persistedMarkdown = stripEphemeralCollabSpans(currentRow?.markdown ?? '');
-  const authoritativeMarkdown = stripEphemeralCollabSpans(doc.markdown ?? '');
-  const targetMarkdown = typeof liveFragmentMarkdown === 'string'
-    ? liveFragmentMarkdown
-    : (context?.mutationBase?.markdown ?? null);
-  const hasPersistedYjsState = typeof currentRow?.y_state_version === 'number' && currentRow.y_state_version > 0;
-  const yjsBackedMutationBase = context?.mutationBase
-    && context.mutationBase.source !== 'projection'
-    && context.mutationBase.source !== 'canonical_row';
-  const shouldCommitCanonical = (Boolean(context?.precondition) && hasPersistedYjsState)
-    || Boolean(yjsBackedMutationBase)
-    || (typeof targetMarkdown === 'string'
-      && stripEphemeralCollabSpans(targetMarkdown) !== persistedMarkdown);
-
-  if (!shouldCommitCanonical) {
-    return persistMarks(slug, normalizedMarks, actor, eventType, eventData);
-  }
-
-  const mutation = await mutateCanonicalDocument({
+  // Yjs-first: try writing marks directly to the live Yjs
+  // doc to bypass canonical persist + quarantine pipeline.
+  // Falls back to the legacy canonical mutation path only
+  // when no live Yjs doc is available.
+  const yjsOk = writeMarksToLiveYjs(
     slug,
-    nextMarkdown: targetMarkdown ?? authoritativeMarkdown,
-    nextMarks: normalizedMarks as unknown as Record<string, unknown>,
-    source: `engine:${eventType}:${actor}`,
-    ...buildCanonicalMutationBaseArgs(doc, context),
-    strictLiveDoc: true,
-    guardPathologicalGrowth: true,
-  });
-  if (!mutation.ok) {
-    return {
-      status: mutation.status,
-      body: {
-        success: false,
-        code: mutation.code,
-        error: mutation.error,
-        ...(mutation.retryWithState ? { retryWithState: mutation.retryWithState } : {}),
-      },
-    };
+    normalizedMarks as unknown as Record<string, unknown>,
+    `${eventType}:${actor}`,
+  );
+
+  if (!yjsOk) {
+    // No live Yjs doc — fall back to sync persistMarks
+    return persistMarks(slug, normalizedMarks, actor, eventType, eventData);
   }
 
   const eventId = addDocumentEvent(
@@ -1330,7 +1311,7 @@ async function persistMarksAsync(
     mutationContextIdempotencyRoute(context),
   );
   refreshSnapshotForSlug(slug);
-  const updated = mutation.document;
+  const updatedDoc = getDocumentBySlug(slug);
   const markId = typeof eventData.markId === 'string' && eventData.markId.trim().length > 0
     ? eventData.markId.trim()
     : undefined;
@@ -1340,9 +1321,9 @@ async function persistMarksAsync(
       success: true,
       eventId,
       ...(markId ? { markId } : {}),
-      shareState: updated.share_state,
-      updatedAt: updated.updated_at,
-      marks: parseMarks(updated.marks),
+      shareState: updatedDoc?.share_state ?? 'ACTIVE',
+      updatedAt: updatedDoc?.updated_at ?? new Date().toISOString(),
+      marks: normalizedMarks,
     },
   };
 }
