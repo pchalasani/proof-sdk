@@ -8462,7 +8462,7 @@ class ProofEditorImpl implements ProofEditor {
       if (success) {
         captureEvent('suggestion_accepted', { count: 1 });
         const stats = getAuthorshipStats(view);
-        this.bridge.authorshipStatsUpdated(stats);
+        this.bridge?.authorshipStatsUpdated(stats);
       }
     });
 
@@ -8568,7 +8568,7 @@ class ProofEditorImpl implements ProofEditor {
       if (count > 0) {
         captureEvent('suggestion_accepted', { count });
         const stats = getAuthorshipStats(view);
-        this.bridge.authorshipStatsUpdated(stats);
+        this.bridge?.authorshipStatsUpdated(stats);
       }
     });
 
@@ -8625,7 +8625,7 @@ class ProofEditorImpl implements ProofEditor {
       if (count > 0) {
         captureEvent('suggestion_rejected', { count });
         const stats = getAuthorshipStats(view);
-        this.bridge.authorshipStatsUpdated(stats);
+        this.bridge?.authorshipStatsUpdated(stats);
       }
     });
     return count;
