@@ -1375,6 +1375,14 @@ function normalizeMetadata(
     if (!ids.has(id)) {
       const detached = next[id];
       if (detached?.kind === 'comment' && shouldIncludeMetadataEntry(detached, true)) continue;
+      // Preserve pending suggestions so they survive
+      // document changes from other accepted suggestions
+      const isPendingSuggestion = (
+        detached?.kind === 'insert'
+        || detached?.kind === 'delete'
+        || detached?.kind === 'replace'
+      ) && detached?.status !== 'accepted' && detached?.status !== 'rejected';
+      if (isPendingSuggestion) continue;
       delete next[id];
       changed = true;
     }
